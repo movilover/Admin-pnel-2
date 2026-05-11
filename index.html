@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="bn" x-data="Admin()" x-init="boot()">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Daily Deal — Admin V2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{fontFamily:{display:['"Playfair Display"','serif'],ui:['"Hind Siliguri"','sans-serif'],mono:['"JetBrains Mono"','monospace']}}}}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+<!-- Firebase -->
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getDatabase,ref,push,set,onValue,update,remove}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+const cfg={
+  apiKey:"AIzaSyCQVlbjApQYtyc86ZTVPsBjOZ3J-RHv_vI",
+  authDomain:"daily-deal-online-shopping.firebaseapp.com",
+  databaseURL:"https://daily-deal-online-shopping-default-rtdb.firebaseio.com"
+};
+const app=initializeApp(cfg);
+const db=getDatabase(app);
+window.$db={
+  // Products
+  listenProducts:(cb)=>onValue(ref(db,'products'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  saveProduct:async(data,key)=>{if(key){await update(ref(db,'products/'+key),data);return key;}else{const r=push(ref(db,'products'));await set(r,data);return r.key;}},
+  deleteProduct:async(key)=>remove(ref(db,'products/'+key)),
+  // Categories
+  listenCategories:(cb)=>onValue(ref(db,'categories'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  saveCategory:async(data,key)=>{if(key){await update(ref(db,'categories/'+key),data);return key;}else{const r=push(ref(db,'categories'));await set(r,data);return r.key;}},
+  deleteCategory:async(key)=>remove(ref(db,'categories/'+key)),
+  // Sections
+  listenSections:(cb)=>onValue(ref(db,'sections'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  saveSection:async(data,key)=>{if(key){await update(ref(db,'sections/'+key),data);return key;}else{const r=push(ref(db,'sections'));await set(r,data);return r.key;}},
+  deleteSection:async(key)=>remove(ref(db,'sections/'+key)),
+  // Orders
+  listenOrders:(cb)=>onValue(ref(db,'orders'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  updateOrder:async(key,data)=>update(ref(db,'orders/'+key),data),
+  // Settings
+  listenSettings:(cb)=>onValue(ref(db,'settings'),s=>cb(s.val()||{}),{onlyOnce:false}),
+  saveSettings:async(data)=>set(ref(db,'settings'),data),
+  // Notifications
+  listenNotifications:(cb)=>onValue(ref(db,'notifications'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  saveNotification:async(data,key)=>{if(key){await update(ref(db,'notifications/'+key),data);return key;}else{const r=push(ref(db,'notifications'));await set(r,data);return r.key;}},
+  deleteNotification:async(key)=>remove(ref(db,'notifications/'+key)),
+  // Custom Buttons
+  listenCustomButtons:(cb)=>onValue(ref(db,'customButtons'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  saveCustomButton:async(data,key)=>{if(key){await update(ref(db,'customButtons/'+key),data);return key;}else{const r=push(ref(db,'customButtons'));await set(r,data);return r.key;}},
+  deleteCustomButton:async(key)=>remove(ref(db,'customButtons/'+key)),
+  // Pinned Products
+  listenPinnedProducts:(cb)=>onValue(ref(db,'pinnedProducts'),s=>{const v=s.val();cb(v?Object.entries(v).map(([k,d])=>({fbKey:k,...d})):[])},{onlyOnce:false}),
+  savePinnedProduct:async(data)=>{const r=push(ref(db,'pinnedProducts'));await set(r,data);return r.key;},
+  deletePinnedProduct:async(key)=>remove(ref(db,'pinnedProducts/'+key)),
+};
+window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<style>
+[x-cloak]{display:none!important}
+*{box-sizing:border-box}
+body{font-family:'Hind Siliguri',sans-serif;background:#0D0D14;color:#E8E8F0;margin:0;min-height:100vh}
+
+/* ─── SIDEBAR ─── */
+.sidebar{position:fixed;left:0;top:0;width:240px;height:100vh;background:#07070E;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;z-index:50}
+.sidebar-logo{padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sidebar-logo .logo-text{font-family:'Playfair Display',serif;font-size:22px;font-weight:900}
+.sidebar-logo .logo-badge{font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;background:rgba(139,92,246,.2);color:#A78BFA;letter-spacing:.5px;margin-top:2px;display:inline-block}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;transition:all .2s;border-radius:0;color:rgba(255,255,255,.45);font-size:13px;font-weight:600;border:none;background:transparent;width:100%;text-align:left;font-family:'Hind Siliguri',sans-serif}
+.nav-item:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.8)}
+.nav-item.active{background:rgba(139,92,246,.12);color:#A78BFA;border-right:2px solid #7C3AED}
+.nav-item i{width:18px;text-align:center;font-size:14px}
+.nav-section-label{font-size:9px;font-weight:800;letter-spacing:1.5px;color:rgba(255,255,255,.2);padding:14px 20px 6px;text-transform:uppercase}
+
+/* ─── MAIN ─── */
+.main-area{margin-left:240px;padding:24px;min-height:100vh}
+@media(max-width:768px){.sidebar{width:100%;height:auto;position:relative}.main-area{margin-left:0}}
+
+/* ─── CARDS ─── */
+.admin-card{background:#111119;border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:22px}
+.stat-card{background:#111119;border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:18px;transition:border-color .2s}
+.stat-card:hover{border-color:rgba(139,92,246,.3)}
+
+/* ─── INPUTS ─── */
+.a-input{width:100%;padding:10px 14px;background:#0D0D14;border:1.5px solid rgba(255,255,255,.1);border-radius:10px;color:#E8E8F0;font-size:13px;font-family:'Hind Siliguri',sans-serif;outline:none;transition:border-color .2s}
+.a-input:focus{border-color:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+.a-label{display:block;font-size:10px;font-weight:700;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.a-select{width:100%;padding:10px 14px;background:#0D0D14;border:1.5px solid rgba(255,255,255,.1);border-radius:10px;color:#E8E8F0;font-size:13px;font-family:'Hind Siliguri',sans-serif;outline:none;appearance:none;cursor:pointer}
+.a-select:focus{border-color:#7C3AED}
+textarea.a-input{resize:vertical;min-height:80px}
+
+/* ─── BUTTONS ─── */
+.btn-primary{padding:10px 20px;background:linear-gradient(135deg,#7C3AED,#6D28D9);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Hind Siliguri',sans-serif;display:inline-flex;align-items:center;gap:6px}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-primary:active{transform:scale(.98)}
+.btn-danger{padding:8px 14px;background:rgba(239,68,68,.15);color:#F87171;border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Hind Siliguri',sans-serif}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-success{padding:8px 14px;background:rgba(34,197,94,.15);color:#4ADE80;border:1px solid rgba(34,197,94,.3);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Hind Siliguri',sans-serif}
+.btn-ghost{padding:8px 14px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Hind Siliguri',sans-serif}
+.btn-ghost:hover{background:rgba(255,255,255,.09)}
+
+/* ─── TABLE ─── */
+.admin-table{width:100%;border-collapse:collapse}
+.admin-table th{font-size:10px;font-weight:800;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;padding:10px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,.07)}
+.admin-table td{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;color:rgba(255,255,255,.75);vertical-align:middle}
+.admin-table tr:hover td{background:rgba(255,255,255,.02)}
+
+/* ─── MODAL ─── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)}
+.modal-box{background:#111119;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;animation:modalIn .3s cubic-bezier(.22,.68,0,1.2)}
+@keyframes modalIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+.modal-header{padding:20px 24px 16px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between}
+
+/* ─── STATUS BADGES ─── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.3px}
+.badge-pending{background:rgba(251,146,60,.15);color:#FB923C;border:1px solid rgba(251,146,60,.3)}
+.badge-processing{background:rgba(96,165,250,.15);color:#60A5FA;border:1px solid rgba(96,165,250,.3)}
+.badge-delivered{background:rgba(74,222,128,.15);color:#4ADE80;border:1px solid rgba(74,222,128,.3)}
+.badge-cancelled{background:rgba(248,113,113,.15);color:#F87171;border:1px solid rgba(248,113,113,.3)}
+
+/* ─── IMAGE GRID PREVIEW ─── */
+.img-preview-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.img-preview-item{position:relative;width:80px;height:80px;border-radius:10px;overflow:hidden;border:1.5px solid rgba(255,255,255,.1)}
+.img-preview-item img{width:100%;height:100%;object-fit:cover}
+.img-remove-btn{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(239,68,68,.9);border:none;color:#fff;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+/* ─── TOGGLE ─── */
+.toggle{position:relative;display:inline-block;width:42px;height:24px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.15);border-radius:24px;transition:.3s}
+.toggle-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+input:checked+.toggle-slider{background:#7C3AED}
+input:checked+.toggle-slider:before{transform:translateX(18px)}
+
+/* ─── SEARCH ─── */
+.admin-search{background:#0D0D14;border:1.5px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 14px;display:flex;align-items:center;gap:10px}
+.admin-search input{background:transparent;border:none;outline:none;color:#E8E8F0;font-size:13px;font-family:'Hind Siliguri',sans-serif;flex:1}
+.admin-search input::placeholder{color:rgba(255,255,255,.25)}
+
+/* ─── PINNED TAG ─── */
+.pinned-tag{display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,.15);color:#FCD34D;border:1px solid rgba(245,158,11,.3);border-radius:20px;font-size:9px;font-weight:800;padding:2px 8px}
+
+/* ─── TOAST ─── */
+.toast-admin{position:fixed;bottom:24px;right:24px;z-index:999;min-width:280px}
+
+/* Password screen */
+.pass-screen{position:fixed;inset:0;background:#07070E;display:flex;align-items:center;justify-content:center;z-index:1000}
+
+/* Tab underline */
+.tab-btn{padding:10px 18px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;border:none;color:rgba(255,255,255,.4);border-bottom:2px solid transparent;transition:all .2s;font-family:'Hind Siliguri',sans-serif}
+.tab-btn.active{color:#A78BFA;border-bottom-color:#7C3AED}
+
+/* Color swatch */
+.color-swatch{width:32px;height:32px;border-radius:8px;border:2px solid rgba(255,255,255,.15);cursor:pointer;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- ════ PASSWORD SCREEN ════ -->
+<div class="pass-screen" x-show="!authed" x-cloak>
+  <div class="text-center" style="max-width:320px;width:100%;padding:0 20px">
+    <div class="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6" style="background:linear-gradient(135deg,#7C3AED,#6D28D9)">
+      <i class="fa-solid fa-shield-halved text-white text-3xl"></i>
+    </div>
+    <p class="font-display text-3xl text-white mb-1">Admin Panel</p>
+    <p class="text-sm mb-8" style="color:rgba(255,255,255,.35)">Daily Deal V2 — Master Controller</p>
+    <input type="password" x-model="passInput" @keydown.enter="checkPass()" placeholder="পাসওয়ার্ড দিন..." class="a-input text-center text-lg tracking-widest mb-4" style="letter-spacing:8px"/>
+    <button @click="checkPass()" class="btn-primary w-full justify-center py-3 text-sm">
+      <i class="fa-solid fa-unlock-keyhole"></i> প্রবেশ করুন
+    </button>
+    <p x-show="passError" class="text-red-400 text-xs mt-3 font-bold">❌ পাসওয়ার্ড ভুল!</p>
+  </div>
+</div>
+
+<!-- ════ MAIN LAYOUT ════ -->
+<div x-show="authed" x-cloak class="flex min-h-screen">
+
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <p class="logo-text text-white">Daily<span style="color:#A78BFA">Deal</span></p>
+      <span class="logo-badge">ADMIN V2</span>
+    </div>
+    <nav class="flex-1 py-3 overflow-y-auto">
+      <span class="nav-section-label">ড্যাশবোর্ড</span>
+      <button @click="tab='dashboard'" :class="tab==='dashboard'?'active':''" class="nav-item"><i class="fa-solid fa-chart-line"></i> ড্যাশবোর্ড</button>
+
+      <span class="nav-section-label">পণ্য ব্যবস্থাপনা</span>
+      <button @click="tab='products'" :class="tab==='products'?'active':''" class="nav-item"><i class="fa-solid fa-box"></i> পণ্য</button>
+      <button @click="tab='categories'" :class="tab==='categories'?'active':''" class="nav-item"><i class="fa-solid fa-tags"></i> ক্যাটাগরি</button>
+      <button @click="tab='sections'" :class="tab==='sections'?'active':''" class="nav-item"><i class="fa-solid fa-layer-group"></i> সেকশন</button>
+      <button @click="tab='pinned'" :class="tab==='pinned'?'active':''" class="nav-item"><i class="fa-solid fa-thumbtack"></i> পিন করা পণ্য</button>
+
+      <span class="nav-section-label">অর্ডার</span>
+      <button @click="tab='orders'" :class="tab==='orders'?'active':''" class="nav-item">
+        <i class="fa-solid fa-receipt"></i> অর্ডার
+        <span x-show="pendingCount>0" x-text="pendingCount" class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(239,68,68,.2);color:#F87171"></span>
+      </button>
+
+      <span class="nav-section-label">কনটেন্ট</span>
+      <button @click="tab='banners'" :class="tab==='banners'?'active':''" class="nav-item"><i class="fa-solid fa-image"></i> ব্যানার</button>
+      <button @click="tab='notifications'" :class="tab==='notifications'?'active':''" class="nav-item"><i class="fa-solid fa-bell"></i> নোটিফিকেশন</button>
+      <button @click="tab='buttons'" :class="tab==='buttons'?'active':''" class="nav-item"><i class="fa-solid fa-grip"></i> কাস্টম বাটন</button>
+
+      <span class="nav-section-label">সেটিংস</span>
+      <button @click="tab='settings'" :class="tab==='settings'?'active':''" class="nav-item"><i class="fa-solid fa-gear"></i> শপ সেটিংস</button>
+      <button @click="tab='appearance'" :class="tab==='appearance'?'active':''" class="nav-item"><i class="fa-solid fa-palette"></i> অ্যাপিয়ারেন্স</button>
+    </nav>
+    <div class="px-4 py-4" style="border-top:1px solid rgba(255,255,255,.06)">
+      <p class="text-xs" style="color:rgba(255,255,255,.2)">Daily Deal Admin V2</p>
+      <button @click="authed=false" class="text-xs mt-1" style="color:rgba(255,255,255,.3);background:transparent;border:none;cursor:pointer;padding:0"><i class="fa-solid fa-right-from-bracket mr-1"></i>লগআউট</button>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN ─── -->
+  <main class="main-area flex-1">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div x-show="tab==='dashboard'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">ড্যাশবোর্ড</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)" x-text="'আজ: '+new Date().toLocaleDateString('bn-BD',{weekday:'long',year:'numeric',month:'long',day:'numeric'})"></p></div>
+      </div>
+      <!-- Stats -->
+      <div class="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-4">
+        <div class="stat-card">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(139,92,246,.15)"><i class="fa-solid fa-box text-sm" style="color:#A78BFA"></i></div>
+            <span class="text-xs font-bold" style="color:rgba(255,255,255,.35)">মোট পণ্য</span>
+          </div>
+          <p class="font-mono text-3xl font-bold text-white" x-text="allProducts.length"></p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(251,146,60,.15)"><i class="fa-solid fa-receipt text-sm" style="color:#FB923C"></i></div>
+            <span class="text-xs font-bold" style="color:rgba(255,255,255,.35)">মোট অর্ডার</span>
+          </div>
+          <p class="font-mono text-3xl font-bold text-white" x-text="allOrders.length"></p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(239,68,68,.15)"><i class="fa-solid fa-clock text-sm" style="color:#F87171"></i></div>
+            <span class="text-xs font-bold" style="color:rgba(255,255,255,.35)">পেন্ডিং</span>
+          </div>
+          <p class="font-mono text-3xl font-bold" style="color:#F87171" x-text="pendingCount"></p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(74,222,128,.15)"><i class="fa-solid fa-bangladeshi-taka-sign text-sm" style="color:#4ADE80"></i></div>
+            <span class="text-xs font-bold" style="color:rgba(255,255,255,.35)">মোট আয়</span>
+          </div>
+          <p class="font-mono text-2xl font-bold" style="color:#4ADE80" x-text="'৳'+totalRevenue.toLocaleString()"></p>
+        </div>
+      </div>
+      <!-- Recent Orders -->
+      <div class="admin-card">
+        <p class="font-bold text-base text-white mb-4">সাম্প্রতিক অর্ডার</p>
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th>অর্ডার</th><th>গ্রাহক</th><th>মোট</th><th>স্ট্যাটাস</th></tr></thead>
+            <tbody>
+              <template x-for="o in allOrders.slice(0,8)" :key="o.fbKey">
+                <tr>
+                  <td class="font-mono text-xs" style="color:#A78BFA" x-text="'#'+o.id"></td>
+                  <td><p x-text="o.customerName"></p><p class="text-xs opacity-50" x-text="o.phone"></p></td>
+                  <td class="font-mono font-bold" x-text="'৳'+(o.total||0).toLocaleString()"></td>
+                  <td><span class="badge" :class="{'badge-pending':o.status==='পেন্ডিং','badge-processing':o.status==='প্রসেসিং','badge-delivered':o.status==='ডেলিভার্ড','badge-cancelled':o.status==='বাতিল'}" x-text="o.status"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PRODUCTS ══ -->
+    <div x-show="tab==='products'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">পণ্য ব্যবস্থাপনা</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)" x-text="allProducts.length+'টি পণ্য'"></p></div>
+        <button @click="openProdModal(null)" class="btn-primary"><i class="fa-solid fa-plus"></i> নতুন পণ্য</button>
+      </div>
+      <!-- Search + Filter -->
+      <div class="flex gap-3 mb-4 flex-wrap">
+        <div class="admin-search flex-1" style="min-width:180px">
+          <i class="fa-solid fa-magnifying-glass text-xs" style="color:rgba(255,255,255,.3)"></i>
+          <input x-model="prodSearch" placeholder="পণ্য খুঁজুন..."/>
+        </div>
+        <select x-model="prodSectionFilter" class="a-select" style="width:auto;min-width:140px">
+          <option value="">সব সেকশন</option>
+          <template x-for="s in allSections" :key="s.fbKey"><option :value="s.fbKey||s.id" x-text="s.name"></option></template>
+        </select>
+        <select x-model="prodCatFilter" class="a-select" style="width:auto;min-width:140px">
+          <option value="">সব ক্যাটাগরি</option>
+          <template x-for="c in allCategories" :key="c.fbKey"><option :value="c.name" x-text="c.name"></option></template>
+        </select>
+      </div>
+      <div class="admin-card p-0 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th>ছবি</th><th>নাম</th><th>মূল্য</th><th>সেকশন</th><th>ক্যাটাগরি</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+            <tbody>
+              <template x-for="p in filteredProducts" :key="p.fbKey">
+                <tr>
+                  <td><img :src="p.images?.[0]||p.img||''" class="w-12 h-12 rounded-lg object-cover" style="background:#1a1a24" onerror="this.src='https://placehold.co/48x48/1a1a24/444?text=?'"/></td>
+                  <td>
+                    <p class="font-semibold" x-text="p.name"></p>
+                    <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span x-show="p.badge" class="text-xs px-2 py-0.5 rounded-full font-bold" style="background:rgba(139,92,246,.2);color:#A78BFA" x-text="p.badge"></span>
+                      <span x-show="p.isEidCollection" class="text-xs px-2 py-0.5 rounded-full font-bold" style="background:rgba(184,134,11,.2);color:#DAA520">🌙 ঈদ</span>
+                      <span x-show="pinnedKeys.includes(p.fbKey)" class="pinned-tag"><i class="fa-solid fa-thumbtack text-xs"></i> পিন</span>
+                    </div>
+                  </td>
+                  <td>
+                    <p class="font-mono font-bold" style="color:#A78BFA" x-text="'৳'+p.price.toLocaleString()"></p>
+                    <p x-show="p.oldPrice" class="text-xs line-through opacity-40" x-text="'৳'+(p.oldPrice||0).toLocaleString()"></p>
+                  </td>
+                  <td class="text-xs opacity-60" x-text="getSectionName(p.section||p.sectionId)||'—'"></td>
+                  <td class="text-xs opacity-60" x-text="p.cat||'—'"></td>
+                  <td><span class="text-xs px-2 py-0.5 rounded-full font-bold" :style="p.active===false?'background:rgba(239,68,68,.15);color:#F87171':'background:rgba(74,222,128,.15);color:#4ADE80'" x-text="p.active===false?'অফ':'অন'"></span></td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <button @click="openProdModal(p)" class="btn-ghost text-xs py-1.5 px-3"><i class="fa-solid fa-pen"></i></button>
+                      <button @click="togglePinProduct(p)" class="text-xs py-1.5 px-3 rounded-lg font-bold transition-all" :style="pinnedKeys.includes(p.fbKey)?'background:rgba(245,158,11,.2);color:#FCD34D;border:1px solid rgba(245,158,11,.3)':'background:rgba(255,255,255,.05);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.08)'"><i class="fa-solid fa-thumbtack text-xs"></i></button>
+                      <button @click="deleteProduct(p)" class="btn-danger text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="filteredProducts.length===0"><td colspan="7" class="text-center py-10 opacity-40">কোনো পণ্য নেই</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CATEGORIES ══ -->
+    <div x-show="tab==='categories'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">ক্যাটাগরি</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)" x-text="allCategories.length+'টি ক্যাটাগরি'"></p></div>
+        <button @click="openCatModal(null)" class="btn-primary"><i class="fa-solid fa-plus"></i> নতুন ক্যাটাগরি</button>
+      </div>
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+        <template x-for="c in allCategories" :key="c.fbKey">
+          <div class="admin-card flex items-center gap-4" style="padding:16px">
+            <!-- Category image/emoji preview -->
+            <div class="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-2xl" style="background:#1a1a24;border:1px solid rgba(255,255,255,.08)">
+              <template x-if="c.img">
+                <img :src="c.img" class="w-full h-full object-cover" onerror="this.style.display='none'"/>
+              </template>
+              <template x-if="!c.img"><span x-text="c.emoji||'📦'"></span></template>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-bold text-sm text-white" x-text="c.name"></p>
+              <div class="flex items-center gap-2 mt-1 flex-wrap">
+                <span class="text-xs opacity-40" x-text="c.gender==='men'?'👔 পুরুষ':c.gender==='women'?'👗 মহিলা':'🛍️ সাধারণ'"></span>
+                <span x-show="getSectionName(c.section||c.sectionId)" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(139,92,246,.15);color:#A78BFA" x-text="getSectionName(c.section||c.sectionId)"></span>
+              </div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button @click="openCatModal(c)" class="btn-ghost text-xs py-1.5 px-3"><i class="fa-solid fa-pen"></i></button>
+              <button @click="deleteCat(c)" class="btn-danger text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+        </template>
+        <div x-show="allCategories.length===0" class="admin-card text-center py-12 opacity-40 col-span-full">কোনো ক্যাটাগরি নেই</div>
+      </div>
+    </div>
+
+    <!-- ══ SECTIONS ══ -->
+    <div x-show="tab==='sections'">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <p class="font-display text-2xl text-white">সেকশন ব্যবস্থাপনা</p>
+          <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)">All Products পেজের সেকশন নিয়ন্ত্রণ করুন</p>
+        </div>
+        <button @click="openSectionModal(null)" class="btn-primary"><i class="fa-solid fa-plus"></i> নতুন সেকশন</button>
+      </div>
+      <div class="grid gap-4">
+        <template x-for="s in allSections" :key="s.fbKey">
+          <div class="admin-card flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" :style="'background:linear-gradient(135deg,'+(s.color||'#6B7280')+','+(s.color2||s.color||'#9CA3AF')+')'">
+              <span x-text="s.icon||'🛍️'"></span>
+            </div>
+            <div class="flex-1">
+              <p class="font-bold text-white" x-text="s.name"></p>
+              <p class="text-xs mt-0.5 opacity-40" x-text="getSectionProductCount(s)+'টি পণ্য · '+getSectionCatCount(s)+'টি ক্যাটাগরি'"></p>
+            </div>
+            <div class="flex items-center gap-3">
+              <label class="toggle"><input type="checkbox" :checked="s.active!==false" @change="toggleSection(s,$event.target.checked)"/><span class="toggle-slider"></span></label>
+              <button @click="openSectionModal(s)" class="btn-ghost text-xs py-1.5 px-3"><i class="fa-solid fa-pen"></i></button>
+              <button @click="deleteSection(s)" class="btn-danger text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+        </template>
+        <div x-show="allSections.length===0" class="admin-card text-center py-12 opacity-40">কোনো সেকশন নেই। নতুন সেকশন যোগ করুন।</div>
+      </div>
+    </div>
+
+    <!-- ══ PINNED PRODUCTS ══ -->
+    <div x-show="tab==='pinned'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">⭐ পিন করা পণ্য</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)">হোমপেজে ফিচার্ড হিসেবে দেখাবে</p></div>
+      </div>
+      <!-- Pin a product -->
+      <div class="admin-card mb-5">
+        <p class="font-bold text-sm text-white mb-3">পণ্য পিন করুন</p>
+        <div class="flex gap-3">
+          <select x-model="pinSelectKey" class="a-select flex-1">
+            <option value="">পণ্য বেছে নিন...</option>
+            <template x-for="p in allProducts" :key="p.fbKey">
+              <option :value="p.fbKey" x-text="p.name+' — ৳'+p.price"></option>
+            </template>
+          </select>
+          <button @click="pinProduct()" class="btn-primary flex-shrink-0"><i class="fa-solid fa-thumbtack"></i> পিন করুন</button>
+        </div>
+      </div>
+      <!-- Pinned list -->
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+        <template x-for="pin in pinnedList" :key="pin.fbKey">
+          <div class="admin-card flex items-center gap-3" style="padding:14px">
+            <img :src="getPinnedProduct(pin.productKey)?.images?.[0]||getPinnedProduct(pin.productKey)?.img||''" class="w-14 h-14 rounded-xl object-cover flex-shrink-0" style="background:#1a1a24" onerror="this.src='https://placehold.co/56x56/1a1a24/444?text=?'"/>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-white truncate" x-text="getPinnedProduct(pin.productKey)?.name||'(পণ্য পাওয়া যায়নি)'"></p>
+              <p class="text-xs mt-0.5 font-mono" style="color:#A78BFA" x-text="'৳'+(getPinnedProduct(pin.productKey)?.price||0).toLocaleString()"></p>
+            </div>
+            <button @click="unpinProduct(pin)" class="btn-danger text-xs py-1.5 px-3 flex-shrink-0"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </template>
+        <div x-show="pinnedList.length===0" class="admin-card text-center py-12 opacity-40 col-span-full">কোনো পিন করা পণ্য নেই</div>
+      </div>
+    </div>
+
+    <!-- ══ ORDERS ══ -->
+    <div x-show="tab==='orders'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">অর্ডার ব্যবস্থাপনা</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)" x-text="allOrders.length+'টি অর্ডার'"></p></div>
+      </div>
+      <!-- Filter pills -->
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <template x-for="s in ['সব','পেন্ডিং','প্রসেসিং','ডেলিভার্ড','বাতিল']" :key="s">
+          <button @click="orderFilter=s" :style="orderFilter===s?'background:#7C3AED;color:#fff':'background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.08)'" class="px-4 py-1.5 rounded-full text-xs font-bold transition-all" style="border:none;cursor:pointer;font-family:'Hind Siliguri',sans-serif" x-text="s"></button>
+        </template>
+      </div>
+      <div class="admin-card p-0 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th>আইডি</th><th>গ্রাহক</th><th>পণ্য</th><th>মোট</th><th>পেমেন্ট</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+            <tbody>
+              <template x-for="o in filteredOrders" :key="o.fbKey">
+                <tr>
+                  <td class="font-mono text-xs" style="color:#A78BFA">#<span x-text="o.id"></span></td>
+                  <td>
+                    <p class="font-semibold text-sm" x-text="o.customerName"></p>
+                    <p class="text-xs opacity-50" x-text="o.phone"></p>
+                    <p class="text-xs opacity-40" x-text="(o.district||'')+(o.division?', '+o.division:'')"></p>
+                  </td>
+                  <td>
+                    <template x-for="it in (o.items||[]).slice(0,2)" :key="it.id">
+                      <p class="text-xs opacity-70" x-text="it.name+' ×'+it.qty"></p>
+                    </template>
+                    <p x-show="(o.items||[]).length>2" class="text-xs opacity-40" x-text="'+'+(o.items.length-2)+' আরও'"></p>
+                  </td>
+                  <td class="font-mono font-bold" style="color:#4ADE80" x-text="'৳'+(o.total||0).toLocaleString()"></td>
+                  <td class="text-xs opacity-60" x-text="o.payMethod||'—'"></td>
+                  <td>
+                    <select @change="updateOrderStatus(o,$event.target.value)" class="a-select text-xs py-1.5" style="min-width:120px;padding:6px 10px">
+                      <template x-for="s in ['পেন্ডিং','প্রসেসিং','ডেলিভার্ড','বাতিল']" :key="s">
+                        <option :value="s" :selected="o.status===s" x-text="s"></option>
+                      </template>
+                    </select>
+                  </td>
+                  <td>
+                    <button @click="openTrackingModal(o)" class="btn-ghost text-xs py-1.5 px-3"><i class="fa-solid fa-location-arrow text-xs"></i> ট্র্যাক</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="filteredOrders.length===0"><td colspan="7" class="text-center py-10 opacity-40">কোনো অর্ডার নেই</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ BANNERS ══ -->
+    <div x-show="tab==='banners'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">হোমপেজ ব্যানার</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)">অটো-স্লাইড ব্যানার সেটআপ করুন</p></div>
+        <button @click="addBanner()" class="btn-primary"><i class="fa-solid fa-plus"></i> ব্যানার যোগ</button>
+      </div>
+      <div class="space-y-4">
+        <template x-for="(b,i) in settingsForm.banners" :key="i">
+          <div class="admin-card">
+            <div class="flex items-center justify-between mb-4">
+              <p class="font-bold text-sm text-white">ব্যানার <span x-text="i+1"></span></p>
+              <button @click="removeBanner(i)" class="btn-danger text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <div class="grid gap-3" style="grid-template-columns:1fr 1fr">
+              <div><label class="a-label">ব্যাজ টেক্সট</label><input class="a-input" x-model="b.badge" placeholder="🔥 হট ডিল"/></div>
+              <div><label class="a-label">শিরোনাম (খালি = শপ নাম)</label><input class="a-input" x-model="b.title" placeholder="শপ নাম দেখাবে"/></div>
+              <div class="col-span-2"><label class="a-label">সাব-টেক্সট</label><input class="a-input" x-model="b.sub" placeholder="সেরা পণ্য · সেরা দাম"/></div>
+              <div class="col-span-2"><label class="a-label">ব্যাকগ্রাউন্ড ইমেজ URL</label><input class="a-input" x-model="b.img" placeholder="https://..."/></div>
+            </div>
+            <!-- Preview -->
+            <div x-show="b.img" class="mt-3 rounded-xl overflow-hidden h-28 relative">
+              <img :src="b.img" class="w-full h-full object-cover"/>
+              <div class="absolute inset-0" style="background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center">
+                <p class="text-white font-bold text-sm" x-text="b.title||'ব্যানার প্রিভিউ'"></p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div class="mt-4 flex gap-3">
+        <button @click="saveSettings()" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> সেভ করুন</button>
+      </div>
+    </div>
+
+    <!-- ══ NOTIFICATIONS ══ -->
+    <div x-show="tab==='notifications'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">নোটিফিকেশন</p></div>
+        <button @click="openNotifModal(null)" class="btn-primary"><i class="fa-solid fa-plus"></i> নতুন</button>
+      </div>
+      <div class="space-y-3">
+        <template x-for="n in allNotifications" :key="n.fbKey">
+          <div class="admin-card flex items-start gap-4">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(139,92,246,.15)"><i :class="n.icon||'fa-solid fa-bell'" style="color:#A78BFA"></i></div>
+            <div class="flex-1">
+              <p class="font-bold text-sm text-white" x-text="n.title"></p>
+              <p class="text-xs mt-0.5 opacity-60" x-text="n.body"></p>
+              <p class="text-xs mt-1 opacity-40" x-text="n.date"></p>
+            </div>
+            <div class="flex gap-2">
+              <button @click="openNotifModal(n)" class="btn-ghost text-xs py-1.5 px-3"><i class="fa-solid fa-pen"></i></button>
+              <button @click="deleteNotif(n)" class="btn-danger text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+        </template>
+        <div x-show="allNotifications.length===0" class="admin-card text-center py-12 opacity-40">কোনো নোটিফিকেশন নেই</div>
+      </div>
+    </div>
+
+    <!-- ══ CUSTOM BUTTONS ══ -->
+    <div x-show="tab==='buttons'">
+      <div class="flex items-center justify-between mb-6">
+        <div><p class="font-display text-2xl text-white">কাস্টম বাটন</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)">হোমপেজে কাস্টম বাটন যোগ করুন</p></div>
+        <button @click="openBtnModal(null)" class="btn-primary"><i class="fa-solid fa-plus"></i> নতুন বাটন</button>
+      </div>
+      <div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+        <template x-for="btn in allCustomButtons" :key="btn.fbKey">
+          <div class="admin-card flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" :style="'background:linear-gradient(135deg,'+(btn.color||'#7C3AED')+','+(btn.color2||btn.color||'#6D28D9')+')'">
+              <span x-text="btn.icon||'🛍️'"></span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-bold text-sm text-white truncate" x-text="btn.label"></p>
+              <p class="text-xs mt-0.5 opacity-40" x-text="btn.cat||btn.action||btn.link||'—'"></p>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="toggle"><input type="checkbox" :checked="btn.active!==false" @change="toggleBtn(btn,$event.target.checked)"/><span class="toggle-slider"></span></label>
+              <button @click="openBtnModal(btn)" class="btn-ghost text-xs py-1.5 px-3"><i class="fa-solid fa-pen"></i></button>
+              <button @click="deleteBtn(btn)" class="btn-danger text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+        </template>
+        <div x-show="allCustomButtons.length===0" class="admin-card text-center py-12 opacity-40 col-span-full">কোনো কাস্টম বাটন নেই</div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div x-show="tab==='settings'">
+      <div class="mb-6"><p class="font-display text-2xl text-white">শপ সেটিংস</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)">সাইটের মূল তথ্য পরিবর্তন করুন</p></div>
+      <div class="grid gap-5 lg:grid-cols-2">
+        <div class="admin-card space-y-4">
+          <p class="font-bold text-sm text-white mb-2">🏪 শপ পরিচয়</p>
+          <div><label class="a-label">শপের নাম</label><input class="a-input" x-model="settingsForm.settings.siteName" placeholder="Daily Deal"/></div>
+          <div><label class="a-label">ট্যাগলাইন</label><input class="a-input" x-model="settingsForm.settings.tagline" placeholder="অনলাইন শপিং"/></div>
+          <div><label class="a-label">প্রোফাইল / হিরো কভার URL</label><input class="a-input" x-model="settingsForm.settings.profileCover" placeholder="https://..."/></div>
+          <div><label class="a-label">শপের ঠিকানা</label><input class="a-input" x-model="settingsForm.settings.shopAddress" placeholder="ঢাকা, বাংলাদেশ"/></div>
+          <div><label class="a-label">শপের ফোন</label><input class="a-input" x-model="settingsForm.settings.shopPhone" placeholder="01XXXXXXXXX"/></div>
+        </div>
+        <div class="admin-card space-y-4">
+          <p class="font-bold text-sm text-white mb-2">📱 সোশ্যাল ও পেমেন্ট</p>
+          <div><label class="a-label">Facebook লিঙ্ক</label><input class="a-input" x-model="settingsForm.settings.fbLink" placeholder="https://facebook.com/..."/></div>
+          <div><label class="a-label">WhatsApp নম্বর</label><input class="a-input" x-model="settingsForm.settings.wa" placeholder="8801XXXXXXXXX"/></div>
+          <div><label class="a-label">রিসেলার লিঙ্ক</label><input class="a-input" x-model="settingsForm.settings.resellerLink" placeholder="https://t.me/..."/></div>
+          <div><label class="a-label">bKash নম্বর</label><input class="a-input" x-model="settingsForm.settings.bkash" placeholder="01XXXXXXXXX"/></div>
+          <div><label class="a-label">Nagad নম্বর</label><input class="a-input" x-model="settingsForm.settings.nagad" placeholder="01XXXXXXXXX"/></div>
+          <div><label class="a-label">App Download লিঙ্ক</label><input class="a-input" x-model="settingsForm.settings.appLink" placeholder="https://play.google.com/..."/></div>
+        </div>
+        <div class="admin-card space-y-4">
+          <p class="font-bold text-sm text-white mb-2">📢 মার্কি / টিকার</p>
+          <div><label class="a-label">মার্কি টেক্সট (খালি রাখলে দেখাবে না)</label><input class="a-input" x-model="settingsForm.marqueeText" placeholder="🔥 বিশেষ অফার চলছে..."/></div>
+          <div>
+            <label class="a-label">টিকার আইটেম (প্রতি লাইনে একটি)</label>
+            <textarea class="a-input" rows="4" :value="(settingsForm.tickers||[]).join('\n')" @input="settingsForm.tickers=$event.target.value.split('\n').filter(t=>t.trim())" placeholder="🔥 আজকের সেরা ডিল!&#10;🚚 দ্রুত ডেলিভারি"></textarea>
+          </div>
+        </div>
+        <div class="admin-card space-y-4">
+          <p class="font-bold text-sm text-white mb-2">⚙️ গ্রিড সেটিংস</p>
+          <div>
+            <label class="a-label">প্রোডাক্ট গ্রিড কলাম</label>
+            <select class="a-select" x-model.number="settingsForm.gridCols">
+              <option value="2">২ কলাম</option>
+              <option value="3">৩ কলাম</option>
+              <option value="4">৪ কলাম</option>
+            </select>
+          </div>
+          <div>
+            <label class="a-label">হোমপেজে সর্বোচ্চ পণ্য</label>
+            <input class="a-input" type="number" x-model.number="settingsForm.homepageLimit" min="4" max="100"/>
+          </div>
+        </div>
+      </div>
+      <div class="mt-5">
+        <button @click="saveSettings()" class="btn-primary py-3 px-8 text-sm"><i class="fa-solid fa-floppy-disk"></i> সব সেটিংস সেভ করুন</button>
+      </div>
+    </div>
+
+    <!-- ══ APPEARANCE ══ -->
+    <div x-show="tab==='appearance'">
+      <div class="mb-6"><p class="font-display text-2xl text-white">অ্যাপিয়ারেন্স</p><p class="text-sm mt-0.5" style="color:rgba(255,255,255,.35)">সাইটের থিম ও রঙ পরিবর্তন করুন</p></div>
+      <div class="admin-card mb-5">
+        <p class="font-bold text-sm text-white mb-4">🎨 থিম বেছে নিন</p>
+        <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+          <template x-for="t in themes" :key="t.id">
+            <div @click="settingsForm.theme=t.id" class="rounded-2xl p-4 cursor-pointer transition-all border-2" :style="'border-color:'+(settingsForm.theme===t.id?t.accent:'transparent')+';background:'+t.bg">
+              <div class="w-8 h-8 rounded-xl mb-3" :style="'background:'+t.accent"></div>
+              <p class="text-sm font-bold" :style="'color:'+t.fg" x-text="t.name"></p>
+              <p class="text-xs mt-0.5 opacity-60" :style="'color:'+t.fg" x-text="t.desc"></p>
+              <div x-show="settingsForm.theme===t.id" class="mt-2 flex items-center gap-1" :style="'color:'+t.accent">
+                <i class="fa-solid fa-circle-check text-xs"></i><span class="text-xs font-bold">সক্রিয়</span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+      <button @click="saveSettings()" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> থিম সেভ করুন</button>
+    </div>
+
+  </main>
+</div>
+
+<!-- ════ MODALS ════ -->
+
+<!-- Product Modal -->
+<div x-show="prodModal.open" x-cloak class="modal-overlay" @click.self="prodModal.open=false">
+  <div class="modal-box">
+    <div class="modal-header">
+      <p class="font-display text-lg text-white" x-text="prodModal.data.fbKey?'পণ্য সম্পাদনা':'নতুন পণ্য'"></p>
+      <button @click="prodModal.open=false" class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+        <div class="col-span-2"><label class="a-label">পণ্যের নাম *</label><input class="a-input" x-model="prodModal.data.name" placeholder="পণ্যের নাম লিখুন"/></div>
+        <div><label class="a-label">মূল্য (৳) *</label><input class="a-input" type="number" x-model.number="prodModal.data.price"/></div>
+        <div><label class="a-label">পুরনো মূল্য (৳)</label><input class="a-input" type="number" x-model.number="prodModal.data.oldPrice"/></div>
+      </div>
+
+      <!-- Images -->
+      <div>
+        <label class="a-label">ছবির URL (একটি করে যোগ করুন)</label>
+        <div class="flex gap-2 mt-1">
+          <input class="a-input flex-1" x-model="imgUrlInput" placeholder="https://..." @keydown.enter="addImageUrl()"/>
+          <button @click="addImageUrl()" class="btn-primary flex-shrink-0 py-2"><i class="fa-solid fa-plus"></i></button>
+        </div>
+        <div class="img-preview-grid mt-2">
+          <template x-for="(img,i) in (prodModal.data.images||[])" :key="i">
+            <div class="img-preview-item">
+              <img :src="img" onerror="this.src='https://placehold.co/80x80/1a1a24/444?text=?'"/>
+              <button @click="prodModal.data.images.splice(i,1)" class="img-remove-btn"><i class="fa-solid fa-xmark" style="font-size:8px"></i></button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+        <!-- Section dropdown -->
+        <div>
+          <label class="a-label">সেকশন</label>
+          <select class="a-select" x-model="prodModal.data.section" @change="prodModal.data.sectionId=prodModal.data.section">
+            <option value="">সেকশন বেছে নিন</option>
+            <template x-for="s in allSections" :key="s.fbKey">
+              <option :value="s.fbKey" x-text="s.name"></option>
+            </template>
+          </select>
+        </div>
+        <!-- Category dropdown -->
+        <div>
+          <label class="a-label">ক্যাটাগরি</label>
+          <select class="a-select" x-model="prodModal.data.cat">
+            <option value="">ক্যাটাগরি বেছে নিন</option>
+            <template x-for="c in filteredCatsForSection" :key="c.fbKey">
+              <option :value="c.name" x-text="c.name+(c.emoji?' '+c.emoji:'')"></option>
+            </template>
+          </select>
+        </div>
+        <!-- Gender (legacy support) -->
+        <div>
+          <label class="a-label">লিঙ্গ (পুরনো)</label>
+          <select class="a-select" x-model="prodModal.data.gender">
+            <option value="">নির্বাচন করুন</option>
+            <option value="men">পুরুষ</option>
+            <option value="women">মহিলা</option>
+            <option value="both">উভয়</option>
+          </select>
+        </div>
+        <div>
+          <label class="a-label">ব্যাজ</label>
+          <input class="a-input" x-model="prodModal.data.badge" placeholder="🔥 HOT"/>
+        </div>
+        <div class="col-span-2">
+          <label class="a-label">সাইজ (কমা দিয়ে আলাদা করুন)</label>
+          <input class="a-input" :value="(prodModal.data.sizes||[]).join(', ')" @input="prodModal.data.sizes=$event.target.value.split(',').map(s=>s.trim()).filter(s=>s)" placeholder="S, M, L, XL"/>
+        </div>
+        <div class="col-span-2"><label class="a-label">বিবরণ</label><textarea class="a-input" x-model="prodModal.data.desc" placeholder="পণ্যের বিস্তারিত বিবরণ..."></textarea></div>
+        <div><label class="a-label">প্রোমো কোড</label><input class="a-input" x-model="prodModal.data.promoCode" placeholder="SAVE10"/></div>
+        <div><label class="a-label">প্রোমো বিবরণ</label><input class="a-input" x-model="prodModal.data.promoDesc" placeholder="১০% ছাড় পান"/></div>
+      </div>
+
+      <div class="flex items-center gap-4 flex-wrap">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <label class="toggle"><input type="checkbox" x-model="prodModal.data.isEidCollection"/><span class="toggle-slider"></span></label>
+          <span class="text-sm" style="color:rgba(255,255,255,.6)">🌙 ঈদ কালেকশন</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <label class="toggle"><input type="checkbox" :checked="prodModal.data.active!==false" @change="prodModal.data.active=$event.target.checked"/><span class="toggle-slider"></span></label>
+          <span class="text-sm" style="color:rgba(255,255,255,.6)">সক্রিয়</span>
+        </label>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button @click="saveProduct()" class="btn-primary flex-1 justify-center"><i class="fa-solid fa-floppy-disk"></i> সেভ করুন</button>
+        <button @click="prodModal.open=false" class="btn-ghost">বাতিল</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div x-show="catModal.open" x-cloak class="modal-overlay" @click.self="catModal.open=false">
+  <div class="modal-box">
+    <div class="modal-header">
+      <p class="font-display text-lg text-white" x-text="catModal.data.fbKey?'ক্যাটাগরি সম্পাদনা':'নতুন ক্যাটাগরি'"></p>
+      <button @click="catModal.open=false" class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div><label class="a-label">ক্যাটাগরি নাম *</label><input class="a-input" x-model="catModal.data.name" placeholder="যেমন: শার্ট, জামা"/></div>
+      <div><label class="a-label">ইমোজি</label><input class="a-input" x-model="catModal.data.emoji" placeholder="👔"/></div>
+      <div><label class="a-label">ছবির URL</label><input class="a-input" x-model="catModal.data.img" placeholder="https://..."/></div>
+      <div x-show="catModal.data.img" class="w-20 h-20 rounded-2xl overflow-hidden" style="border:1px solid rgba(255,255,255,.1)"><img :src="catModal.data.img" class="w-full h-full object-cover" onerror="this.style.display='none'"/></div>
+      <div>
+        <label class="a-label">সেকশন (All Products পেজে কোথায় দেখাবে)</label>
+        <select class="a-select" x-model="catModal.data.section" @change="catModal.data.sectionId=catModal.data.section">
+          <option value="">সেকশন বেছে নিন</option>
+          <template x-for="s in allSections" :key="s.fbKey"><option :value="s.fbKey" x-text="s.name"></option></template>
+        </select>
+      </div>
+      <div>
+        <label class="a-label">লিঙ্গ (পুরনো পদ্ধতি)</label>
+        <select class="a-select" x-model="catModal.data.gender">
+          <option value="">নির্বাচন করুন</option>
+          <option value="men">👔 পুরুষ</option>
+          <option value="women">👗 মহিলা</option>
+          <option value="both">🛍️ উভয়</option>
+        </select>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button @click="saveCategory()" class="btn-primary flex-1 justify-center"><i class="fa-solid fa-floppy-disk"></i> সেভ করুন</button>
+        <button @click="catModal.open=false" class="btn-ghost">বাতিল</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section Modal -->
+<div x-show="sectionModal.open" x-cloak class="modal-overlay" @click.self="sectionModal.open=false">
+  <div class="modal-box">
+    <div class="modal-header">
+      <p class="font-display text-lg text-white" x-text="sectionModal.data.fbKey?'সেকশন সম্পাদনা':'নতুন সেকশন'"></p>
+      <button @click="sectionModal.open=false" class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div><label class="a-label">সেকশন নাম *</label><input class="a-input" x-model="sectionModal.data.name" placeholder="যেমন: পুরুষ কালেকশন"/></div>
+      <div><label class="a-label">আইকন (ইমোজি)</label><input class="a-input" x-model="sectionModal.data.icon" placeholder="👔"/></div>
+      <div class="grid gap-3" style="grid-template-columns:1fr 1fr">
+        <div>
+          <label class="a-label">রঙ ১</label>
+          <div class="flex gap-2 items-center">
+            <input class="a-input flex-1" x-model="sectionModal.data.color" placeholder="#1D4ED8"/>
+            <input type="color" :value="sectionModal.data.color||'#1D4ED8'" @input="sectionModal.data.color=$event.target.value" class="color-swatch"/>
+          </div>
+        </div>
+        <div>
+          <label class="a-label">রঙ ২</label>
+          <div class="flex gap-2 items-center">
+            <input class="a-input flex-1" x-model="sectionModal.data.color2" placeholder="#3B82F6"/>
+            <input type="color" :value="sectionModal.data.color2||'#3B82F6'" @input="sectionModal.data.color2=$event.target.value" class="color-swatch"/>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="a-label">ক্রম নম্বর (ছোট = আগে)</label>
+        <input class="a-input" type="number" x-model.number="sectionModal.data.order" placeholder="1"/>
+      </div>
+      <!-- Color preview -->
+      <div class="h-12 rounded-xl flex items-center justify-center gap-2 text-white font-bold text-sm" :style="'background:linear-gradient(135deg,'+(sectionModal.data.color||'#6B7280')+','+(sectionModal.data.color2||sectionModal.data.color||'#9CA3AF')+')'">
+        <span x-text="sectionModal.data.icon||'🛍️'"></span>
+        <span x-text="sectionModal.data.name||'সেকশন প্রিভিউ'"></span>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button @click="saveSection()" class="btn-primary flex-1 justify-center"><i class="fa-solid fa-floppy-disk"></i> সেভ করুন</button>
+        <button @click="sectionModal.open=false" class="btn-ghost">বাতিল</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Modal -->
+<div x-show="notifModal.open" x-cloak class="modal-overlay" @click.self="notifModal.open=false">
+  <div class="modal-box">
+    <div class="modal-header">
+      <p class="font-display text-lg text-white" x-text="notifModal.data.fbKey?'নোটিফিকেশন সম্পাদনা':'নতুন নোটিফিকেশন'"></p>
+      <button @click="notifModal.open=false" class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div><label class="a-label">শিরোনাম *</label><input class="a-input" x-model="notifModal.data.title" placeholder="নোটিফিকেশন শিরোনাম"/></div>
+      <div><label class="a-label">বিবরণ</label><textarea class="a-input" x-model="notifModal.data.body" placeholder="বিস্তারিত বিবরণ..."></textarea></div>
+      <div><label class="a-label">আইকন ক্লাস (Font Awesome)</label><input class="a-input" x-model="notifModal.data.icon" placeholder="fa-solid fa-bell"/></div>
+      <div><label class="a-label">লিঙ্ক</label><input class="a-input" x-model="notifModal.data.appLink" placeholder="https://..."/></div>
+      <div><label class="a-label">লিঙ্ক লেবেল</label><input class="a-input" x-model="notifModal.data.linkLabel" placeholder="দেখুন"/></div>
+      <div><label class="a-label">তারিখ</label><input class="a-input" x-model="notifModal.data.date" placeholder="১ জানুয়ারি, ২০২৫"/></div>
+      <div class="flex gap-3 pt-2">
+        <button @click="saveNotif()" class="btn-primary flex-1 justify-center"><i class="fa-solid fa-floppy-disk"></i> সেভ করুন</button>
+        <button @click="notifModal.open=false" class="btn-ghost">বাতিল</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Button Modal -->
+<div x-show="btnModal.open" x-cloak class="modal-overlay" @click.self="btnModal.open=false">
+  <div class="modal-box">
+    <div class="modal-header">
+      <p class="font-display text-lg text-white" x-text="btnModal.data.fbKey?'বাটন সম্পাদনা':'নতুন বাটন'"></p>
+      <button @click="btnModal.open=false" class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div><label class="a-label">লেবেল *</label><input class="a-input" x-model="btnModal.data.label" placeholder="বাটনের নাম"/></div>
+      <div><label class="a-label">আইকন (ইমোজি)</label><input class="a-input" x-model="btnModal.data.icon" placeholder="🛍️"/></div>
+      <div class="grid gap-3" style="grid-template-columns:1fr 1fr">
+        <div><label class="a-label">রঙ ১</label><div class="flex gap-2 items-center"><input class="a-input flex-1" x-model="btnModal.data.color" placeholder="#7C3AED"/><input type="color" :value="btnModal.data.color||'#7C3AED'" @input="btnModal.data.color=$event.target.value" class="color-swatch"/></div></div>
+        <div><label class="a-label">রঙ ২</label><div class="flex gap-2 items-center"><input class="a-input flex-1" x-model="btnModal.data.color2" placeholder="#6D28D9"/><input type="color" :value="btnModal.data.color2||'#6D28D9'" @input="btnModal.data.color2=$event.target.value" class="color-swatch"/></div></div>
+      </div>
+      <div>
+        <label class="a-label">অ্যাকশন</label>
+        <select class="a-select" x-model="btnModal.data.action">
+          <option value="">ক্যাটাগরি ফিল্টার</option>
+          <option value="eid">🌙 ঈদ কালেকশন</option>
+          <option value="allproducts">📦 সকল পণ্য</option>
+          <option value="link">🔗 বাহ্যিক লিঙ্ক</option>
+        </select>
+      </div>
+      <div x-show="!btnModal.data.action||btnModal.data.action===''">
+        <label class="a-label">ক্যাটাগরি নাম</label>
+        <select class="a-select" x-model="btnModal.data.cat">
+          <option value="">বেছে নিন...</option>
+          <template x-for="c in allCategories" :key="c.fbKey"><option :value="c.name" x-text="c.name"></option></template>
+        </select>
+      </div>
+      <div x-show="btnModal.data.action==='link'">
+        <label class="a-label">লিঙ্ক URL</label><input class="a-input" x-model="btnModal.data.link" placeholder="https://..."/>
+      </div>
+      <!-- Preview -->
+      <div class="rounded-xl py-3 px-4 flex items-center gap-3 text-white font-bold text-sm" :style="'background:linear-gradient(135deg,'+(btnModal.data.color||'#7C3AED')+','+(btnModal.data.color2||btnModal.data.color||'#6D28D9')+')'">
+        <span x-text="btnModal.data.icon||'🛍️'" style="font-size:20px"></span>
+        <span x-text="btnModal.data.label||'বাটন প্রিভিউ'"></span>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button @click="saveBtn()" class="btn-primary flex-1 justify-center"><i class="fa-solid fa-floppy-disk"></i> সেভ করুন</button>
+        <button @click="btnModal.open=false" class="btn-ghost">বাতিল</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tracking Modal -->
+<div x-show="trackModal.open" x-cloak class="modal-overlay" @click.self="trackModal.open=false">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-header">
+      <p class="font-display text-lg text-white">ট্র্যাকিং লিঙ্ক সেট</p>
+      <button @click="trackModal.open=false" class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);border:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+      <p class="text-sm opacity-60">অর্ডার #<span x-text="trackModal.order?.id"></span> — <span x-text="trackModal.order?.customerName"></span></p>
+      <div><label class="a-label">ট্র্যাকিং URL</label><input class="a-input" x-model="trackModal.link" placeholder="https://..."/></div>
+      <div class="flex gap-3">
+        <button @click="saveTracking()" class="btn-primary flex-1 justify-center"><i class="fa-solid fa-location-arrow"></i> সেভ করুন</button>
+        <button @click="trackModal.open=false" class="btn-ghost">বাতিল</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-admin" x-show="toast.show" x-cloak>
+  <div class="rounded-2xl px-5 py-3.5 flex items-center gap-3 shadow-2xl text-sm font-bold text-white" :style="toast.type==='success'?'background:#059669':toast.type==='error'?'background:#DC2626':'background:#374151'">
+    <i :class="toast.type==='success'?'fa-solid fa-circle-check':'fa-solid fa-circle-xmark'"></i>
+    <span x-text="toast.msg"></span>
+  </div>
+</div>
+
+<script>
+function Admin(){return{
+  authed:false, passInput:'', passError:false,
+  tab:'dashboard',
+  allProducts:[], allOrders:[], allCategories:[], fbSections:[], allNotifications:[], allCustomButtons:[], pinnedList:[],
+  orderFilter:'সব', prodSearch:'', prodSectionFilter:'', prodCatFilter:'',
+  imgUrlInput:'', pinSelectKey:'',
+  toast:{show:false,msg:'',type:'success'},
+  trackModal:{open:false,order:null,link:''},
+
+  // Settings form
+  settingsForm:{
+    settings:{siteName:'Daily Deal',tagline:'অনলাইন শপিং',fbLink:'',wa:'',bkash:'',nagad:'',resellerLink:'',appLink:'',shopAddress:'',shopPhone:'',profileCover:''},
+    banners:[{title:'',sub:'সেরা পণ্য · সেরা দাম · দ্রুত ডেলিভারি',img:'',badge:'🔥 হট ডিল'}],
+    theme:'light', marqueeText:'', gridCols:2, homepageLimit:8, tickers:['🔥 আজকের সেরা ডিল!','🚚 দ্রুত ডেলিভারি']
+  },
+
+  // Modals
+  prodModal:{open:false,data:{}},
+  catModal:{open:false,data:{}},
+  sectionModal:{open:false,data:{}},
+  notifModal:{open:false,data:{}},
+  btnModal:{open:false,data:{}},
+
+  themes:[
+    {id:'light',name:'লাইট',desc:'ক্লাসিক',bg:'#F8F5F0',fg:'#0F0D0A',accent:'#E8320A'},
+    {id:'dark',name:'ডার্ক',desc:'নাইট মোড',bg:'#09090E',fg:'#EEEEFF',accent:'#7C3AED'},
+    {id:'blue',name:'নীল',desc:'ট্রাস্ট',bg:'#EFF6FF',fg:'#0A1628',accent:'#1D4ED8'},
+    {id:'gold',name:'গোল্ড',desc:'প্রিমিয়াম',bg:'#FDFAF3',fg:'#1A1200',accent:'#B8860B'},
+    {id:'rose',name:'রোজ',desc:'ফেমিনিন',bg:'#FFF5F7',fg:'#1A0510',accent:'#E8196A'},
+    {id:'green',name:'গ্রিন',desc:'ফ্রেশ',bg:'#F0FDF4',fg:'#032010',accent:'#16A34A'},
+  ],
+
+  get allSections(){return this.fbSections.sort((a,b)=>(a.order||99)-(b.order||99))},
+  get pendingCount(){return this.allOrders.filter(o=>o.status==='পেন্ডিং').length},
+  get totalRevenue(){return this.allOrders.filter(o=>o.status==='ডেলিভার্ড').reduce((s,o)=>s+(o.total||0),0)},
+  get pinnedKeys(){return this.pinnedList.map(p=>p.productKey||p.fbKey).filter(Boolean)},
+  get filteredOrders(){if(this.orderFilter==='সব')return this.allOrders;return this.allOrders.filter(o=>o.status===this.orderFilter)},
+  get filteredProducts(){
+    return this.allProducts.filter(p=>{
+      const q=this.prodSearch.toLowerCase();
+      const matchQ=!q||(p.name||'').toLowerCase().includes(q);
+      const matchS=!this.prodSectionFilter||(p.section===this.prodSectionFilter||p.sectionId===this.prodSectionFilter);
+      const matchC=!this.prodCatFilter||p.cat===this.prodCatFilter;
+      return matchQ&&matchS&&matchC;
+    });
+  },
+  get filteredCatsForSection(){
+    if(!this.prodModal.data.section)return this.allCategories;
+    return this.allCategories.filter(c=>c.section===this.prodModal.data.section||c.sectionId===this.prodModal.data.section);
+  },
+
+  getSectionName(sid){if(!sid)return'';const s=this.allSections.find(s=>s.fbKey===sid||s.id===sid);return s?.name||''},
+  getSectionProductCount(section){const sid=section.fbKey||section.id;return this.allProducts.filter(p=>p.section===sid||p.sectionId===sid).length},
+  getSectionCatCount(section){const sid=section.fbKey||section.id;return this.allCategories.filter(c=>c.section===sid||c.sectionId===sid).length},
+  getPinnedProduct(key){return this.allProducts.find(p=>p.fbKey===key||p.id===key)},
+
+  checkPass(){
+    if(this.passInput==='153781'){this.authed=true;this.passError=false;}
+    else{this.passError=true;this.passInput='';}
+  },
+
+  boot(){
+    window.addEventListener('firebase-ready',()=>{
+      window.$db.listenProducts(p=>{this.allProducts=p.sort((a,b)=>(b.timestamp||0)-(a.timestamp||0))});
+      window.$db.listenOrders(o=>{this.allOrders=o.sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0))});
+      window.$db.listenCategories(c=>{this.allCategories=c});
+      window.$db.listenSections(s=>{this.fbSections=s});
+      window.$db.listenNotifications(n=>{this.allNotifications=n});
+      window.$db.listenCustomButtons(b=>{this.allCustomButtons=b});
+      window.$db.listenPinnedProducts(p=>{this.pinnedList=p});
+      window.$db.listenSettings(s=>{
+        if(s.settings)Object.assign(this.settingsForm.settings,s.settings);
+        if(s.banners)this.settingsForm.banners=s.banners;
+        if(s.theme)this.settingsForm.theme=s.theme;
+        if(s.marqueeText!==undefined)this.settingsForm.marqueeText=s.marqueeText||'';
+        if(s.gridCols)this.settingsForm.gridCols=s.gridCols;
+        if(s.homepageLimit)this.settingsForm.homepageLimit=s.homepageLimit;
+        if(s.tickers&&s.tickers.length)this.settingsForm.tickers=s.tickers;
+      });
+    },{once:true});
+  },
+
+  // ─── PRODUCT ───
+  openProdModal(p){
+    this.imgUrlInput='';
+    this.prodModal={open:true,data:p?JSON.parse(JSON.stringify(p)):{name:'',price:0,oldPrice:0,images:[],img:'',cat:'',section:'',sectionId:'',gender:'',badge:'',desc:'',promoCode:'',promoDesc:'',sizes:[],isEidCollection:false,active:true}};
+  },
+  addImageUrl(){
+    const url=this.imgUrlInput.trim();
+    if(!url)return;
+    if(!this.prodModal.data.images)this.prodModal.data.images=[];
+    this.prodModal.data.images.push(url);
+    this.imgUrlInput='';
+  },
+  async saveProduct(){
+    if(!this.prodModal.data.name){this.showToast('নাম লিখুন!','error');return}
+    if(!this.prodModal.data.price){this.showToast('মূল্য লিখুন!','error');return}
+    const d={...this.prodModal.data,timestamp:Date.now()};
+    if(d.images&&d.images.length>0&&!d.img)d.img=d.images[0];
+    delete d.fbKey;
+    try{await window.$db.saveProduct(d,this.prodModal.data.fbKey||null);this.prodModal.open=false;this.showToast('পণ্য সেভ হয়েছে! ✅');}
+    catch(e){this.showToast('এরর: '+e.message,'error')}
+  },
+  async deleteProduct(p){
+    if(!confirm('এই পণ্য মুছে দেবেন?'))return;
+    try{await window.$db.deleteProduct(p.fbKey);this.showToast('পণ্য মুছে গেছে');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+
+  // ─── CATEGORY ───
+  openCatModal(c){this.catModal={open:true,data:c?JSON.parse(JSON.stringify(c)):{name:'',emoji:'',img:'',gender:'',section:'',sectionId:''}};},
+  async saveCategory(){
+    if(!this.catModal.data.name){this.showToast('নাম লিখুন!','error');return}
+    const d={...this.catModal.data};
+    delete d.fbKey;
+    try{await window.$db.saveCategory(d,this.catModal.data.fbKey||null);this.catModal.open=false;this.showToast('ক্যাটাগরি সেভ হয়েছে! ✅');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async deleteCat(c){
+    if(!confirm('এই ক্যাটাগরি মুছে দেবেন?'))return;
+    try{await window.$db.deleteCategory(c.fbKey);this.showToast('মুছে গেছে');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+
+  // ─── SECTIONS ───
+  openSectionModal(s){this.sectionModal={open:true,data:s?JSON.parse(JSON.stringify(s)):{name:'',icon:'🛍️',color:'#6B7280',color2:'#9CA3AF',order:99,active:true}};},
+  async saveSection(){
+    if(!this.sectionModal.data.name){this.showToast('নাম লিখুন!','error');return}
+    const d={...this.sectionModal.data};
+    delete d.fbKey;
+    try{await window.$db.saveSection(d,this.sectionModal.data.fbKey||null);this.sectionModal.open=false;this.showToast('সেকশন সেভ হয়েছে! ✅');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async deleteSection(s){
+    if(!confirm('এই সেকশন মুছে দেবেন?'))return;
+    try{await window.$db.deleteSection(s.fbKey);this.showToast('মুছে গেছে');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async toggleSection(s,val){
+    try{await window.$db.saveSection({...s,active:val},s.fbKey);}catch(e){}
+  },
+
+  // ─── ORDERS ───
+  async updateOrderStatus(o,status){
+    try{await window.$db.updateOrder(o.fbKey,{status});this.showToast('স্ট্যাটাস আপডেট হয়েছে ✅');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  openTrackingModal(o){this.trackModal={open:true,order:o,link:o.trackingLink||''}},
+  async saveTracking(){
+    try{await window.$db.updateOrder(this.trackModal.order.fbKey,{trackingLink:this.trackModal.link});this.trackModal.open=false;this.showToast('ট্র্যাকিং সেট হয়েছে! ✅');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+
+  // ─── SETTINGS ───
+  async saveSettings(){
+    try{await window.$db.saveSettings(this.settingsForm);this.showToast('সেটিংস সেভ হয়েছে! ✅');}
+    catch(e){this.showToast('সেভ ব্যর্থ!','error')}
+  },
+  addBanner(){this.settingsForm.banners.push({title:'',sub:'',img:'',badge:'🔥 হট ডিল'})},
+  removeBanner(i){this.settingsForm.banners.splice(i,1)},
+
+  // ─── NOTIFICATIONS ───
+  openNotifModal(n){this.notifModal={open:true,data:n?JSON.parse(JSON.stringify(n)):{title:'',body:'',icon:'fa-solid fa-bell',appLink:'',linkLabel:'',date:new Date().toLocaleDateString('bn-BD',{year:'numeric',month:'long',day:'numeric'})}};},
+  async saveNotif(){
+    if(!this.notifModal.data.title){this.showToast('শিরোনাম লিখুন!','error');return}
+    const d={...this.notifModal.data};delete d.fbKey;
+    try{await window.$db.saveNotification(d,this.notifModal.data.fbKey||null);this.notifModal.open=false;this.showToast('নোটিফিকেশন সেভ! ✅');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async deleteNotif(n){
+    if(!confirm('মুছে দেবেন?'))return;
+    try{await window.$db.deleteNotification(n.fbKey);this.showToast('মুছে গেছে');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+
+  // ─── CUSTOM BUTTONS ───
+  openBtnModal(b){this.btnModal={open:true,data:b?JSON.parse(JSON.stringify(b)):{label:'',icon:'🛍️',color:'#7C3AED',color2:'#6D28D9',action:'',cat:'',link:'',active:true}};},
+  async saveBtn(){
+    if(!this.btnModal.data.label){this.showToast('লেবেল লিখুন!','error');return}
+    const d={...this.btnModal.data};delete d.fbKey;
+    try{await window.$db.saveCustomButton(d,this.btnModal.data.fbKey||null);this.btnModal.open=false;this.showToast('বাটন সেভ! ✅');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async deleteBtn(b){
+    if(!confirm('মুছে দেবেন?'))return;
+    try{await window.$db.deleteCustomButton(b.fbKey);this.showToast('মুছে গেছে');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async toggleBtn(b,val){
+    try{await window.$db.saveCustomButton({...b,active:val},b.fbKey);}catch(e){}
+  },
+
+  // ─── PINNED PRODUCTS ───
+  async pinProduct(){
+    if(!this.pinSelectKey){this.showToast('পণ্য বেছে নিন!','error');return}
+    if(this.pinnedKeys.includes(this.pinSelectKey)){this.showToast('ইতিমধ্যে পিন করা!','error');return}
+    try{await window.$db.savePinnedProduct({productKey:this.pinSelectKey,timestamp:Date.now()});this.pinSelectKey='';this.showToast('পিন করা হয়েছে! ⭐');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async unpinProduct(pin){
+    try{await window.$db.deletePinnedProduct(pin.fbKey);this.showToast('পিন সরানো হয়েছে');}
+    catch(e){this.showToast('এরর!','error')}
+  },
+  async togglePinProduct(p){
+    if(this.pinnedKeys.includes(p.fbKey)){
+      const pin=this.pinnedList.find(pin=>pin.productKey===p.fbKey);
+      if(pin)await this.unpinProduct(pin);
+    }else{
+      await window.$db.savePinnedProduct({productKey:p.fbKey,timestamp:Date.now()});
+      this.showToast('পিন করা হয়েছে! ⭐');
+    }
+  },
+
+  showToast(msg,type='success'){this.toast={show:true,msg,type};setTimeout(()=>this.toast.show=false,3000)},
+}}
+</script>
+</body>
+</html>
